@@ -1,0 +1,193 @@
+diff --git a/src/config.c b/src/config.c
+index eb2a38e..33d6d38 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -1,6 +1,7 @@
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <string.h>
++#include <strings.h>
+ #include <errno.h>
+ #include <syslog.h>
+ #include <sys/stat.h>
+@@ -21,10 +22,34 @@ static const statsite_config DEFAULT_CONFIG = {
+     LOG_DEBUG,
+     0.01,               // Default 1% error
+     "cat",              // Pipe to cat
+-    10                  // Flush every 10 seconds
++    10,                 // Flush every 10 seconds
++    0,                  // Do not daemonize
++    "/var/run/statsite.pid" // Default pidfile path
+ };
+ 
+ /**
++ * Attempts to convert a string to a boolean,
++ * and write the value out.
++ * @arg val The string value
++ * @arg result The destination for the result
++ * @return 1 on success, 0 on error.
++ */
++static bool value_to_bool(const char *val, bool *result) {
++    #define VAL_MATCH(param) (strcasecmp(param, val) == 0)
++    
++    if (VAL_MATCH("true") || VAL_MATCH("yes") || VAL_MATCH("1")) {
++        *result = true;
++        return 0;
++    } else if (VAL_MATCH("false") || VAL_MATCH("no") || VAL_MATCH("0")) {
++        *result = false;
++        return 0;
++    }
++
++    puts("Couldn't determine value of daemonize");
++    return 1;
++}
++
++/**
+  * Attempts to convert a string to an integer,
+  * and write the value out.
+  * @arg val The string value
+@@ -85,16 +110,20 @@ static int config_callback(void* user, const char* section, const char* name, co
+         return value_to_int(value, &config->udp_port);
+     } else if (NAME_MATCH("flush_interval")) {
+          return value_to_int(value, &config->flush_interval);
++    } else if (NAME_MATCH("daemonize")) {
++        return value_to_bool(value, &config->daemonize);
+ 
+     // Handle the double cases
+     } else if (NAME_MATCH("timer_eps")) {
+-         return value_to_double(value, &config->timer_eps);
++        return value_to_double(value, &config->timer_eps);
+ 
+     // Copy the string values
+     } else if (NAME_MATCH("log_level")) {
+         config->log_level = strdup(value);
+     } else if (NAME_MATCH("stream_cmd")) {
+         config->stream_cmd = strdup(value);
++    } else if (NAME_MATCH("pid_file")) {
++        config->pid_file = strdup(value);
+ 
+     // Unknown parameter?
+     } else {
+diff --git a/src/config.h b/src/config.h
+index c3b80e2..b7ae5d9 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -3,6 +3,8 @@
+ #include <stdint.h>
+ #include <syslog.h>
+ 
++typedef enum { false, true } bool;
++
+ /**
+  * Stores our configuration
+  */
+@@ -14,6 +16,8 @@ typedef struct {
+     double timer_eps;
+     char *stream_cmd;
+     int flush_interval;
++    bool daemonize;
++    char *pid_file;
+ } statsite_config;
+ 
+ /**
+diff --git a/src/statsite.c b/src/statsite.c
+index 4356810..27d6fad 100644
+--- a/src/statsite.c
++++ b/src/statsite.c
+@@ -5,6 +5,7 @@
+  * the filter manager, and finally starting the
+  * front ends.
+  */
++#include <sys/stat.h>
+ #include <ctype.h>
+ #include <errno.h>
+ #include <pthread.h>
+@@ -96,6 +97,32 @@ void signal_handler(int signum) {
+ }
+ 
+ 
++/**
++ * Writes the pid to the configured pidfile
++ */
++int write_pidfile(char *pid_file, pid_t pid) {
++    struct stat buf;
++    int stat_res = stat(pid_file, &buf);
++    if (stat_res == 0) {
++        syslog(LOG_ERR, "pid file already exists!");
++        return 1;
++    }
++
++    FILE *file = fopen(pid_file, "w");
++
++    if (!file) {
++        syslog(LOG_ERR, "Failed to open pid file!");
++        return 1;
++    }
++
++    fprintf(file, "%d", pid);
++
++    fclose(file);
++    
++    return 0;
++}
++
++
+ int main(int argc, char **argv) {
+     // Initialize syslog
+     setup_syslog();
+@@ -123,6 +150,40 @@ int main(int argc, char **argv) {
+     // Set the syslog mask
+     setlogmask(config->syslog_log_level);
+ 
++    // Daemonize
++    if (config->daemonize == true) {
++        pid_t pid, sid;
++
++        syslog(LOG_ERR, "Daemonizing.");
++
++        pid = fork();
++
++        if (pid < 0) {
++            syslog(LOG_ERR, "Failed to fork() daemon!");
++            return 1;
++        }
++
++        if (pid > 0) {
++            return 0;
++        }
++
++        sid = setsid();
++        if (sid < 0) {
++            syslog(LOG_ERR, "Failed to set daemon SID!");
++            return 1;
++        }
++
++        int write_pidfile_res = write_pidfile(config->pid_file, sid);
++        if (write_pidfile_res != 0) {
++            syslog(LOG_ERR, "Couldn't write pidfile; shutting down.");
++            return 1;
++        }
++
++        close(STDIN_FILENO);
++        close(STDOUT_FILENO);
++        close(STDERR_FILENO);
++    }
++
+     // Log that we are starting up
+     syslog(LOG_INFO, "Starting statsite.");
+ 
+@@ -156,6 +217,14 @@ int main(int argc, char **argv) {
+     // Do the final flush
+     final_flush();
+ 
++    // If daemonized, remove the pid file
++    if (config->daemonize == true) {
++        int unlink_res = unlink(config->pid_file);
++        if (unlink_res != 0) {
++            syslog(LOG_ERR, "Failed to delete pid file!");
++        }
++    }
++
+     // Free our memory
+     free(config);
+ 

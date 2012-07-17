@@ -1,0 +1,77 @@
+#!/bin/bash
+#
+# statsite - This script starts and stops the statsite service.
+#
+# chkconfig:   - 90 10
+# description: statsite implements Etsy's statsd protocol and translates
+#              system metrics into various formats.
+# processname: statsite
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ "$NETWORKING" = "no" ] && exit 0
+
+exec="/usr/bin/statsite"
+prog=$(basename "$exec")
+STATSITE_CONFIG_PATH="/etc/statsite/statsite.conf"
+STATSITE_PIDFILE="/var/run/statsite/statsite.pid"
+
+restart() {
+    stop
+    start
+}
+
+rh_status() {
+    status -p "$STATSITE_PIDFILE" "$prog"
+}
+
+start() {
+    echo -n 'Starting statsite...'
+    daemon --pidfile="$STATSITE_PIDFILE" "$exec" -f "$STATSITE_CONFIG_PATH"
+    retval=$?
+    echo
+    return $retval
+}
+
+stop() {
+    echo -n 'Stopping statsite...' 
+    killproc -p "$STATSITE_PIDFILE" "$prog"
+    retval=$?
+    echo
+    return $retval
+}
+
+case $1 in
+    condrestart|try-restart)
+        rh_status "$f" 2>/dev/null && restart "$f"
+        ;;
+    reload|force-reload)
+        restart
+        ;;
+    restart)
+        restart
+        ;;
+    start)
+        start
+        ;;
+    status)
+        rh_status
+        ;;
+    status_q)
+        rh_status >/dev/null 2>&1
+        ;;
+    stop)
+        stop
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
+        exit 2
+        ;;
+esac
+
+exit $?
