@@ -5,10 +5,10 @@ Summary:          Stats aggregation server
 Group:            Applications/Internet
 License:          BSD
 URL:              https://github.com/armon/statsite
-Source:           %{name}-%{release}.tar.gz
+Source:           https://github.com/armon/statsite/archive/v%{release}.tar.gz
 Source1:          statsite.conf.default
 Source2:          statsite.init
-BuildRoot:        %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+BuildRoot:        %{_tmppath}/%{name}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:    check
 BuildRequires:    scons
