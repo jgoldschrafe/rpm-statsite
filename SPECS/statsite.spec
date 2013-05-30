@@ -1,17 +1,14 @@
-%global git_rev ea1efe3
-
 Name:             statsite
-Version:          0
-Release:          0.20120716git%{git_rev}%{?dist}
+Version:          0.5.0
+Release:          1
 Summary:          Stats aggregation server
 Group:            Applications/Internet
 License:          BSD
 URL:              https://github.com/armon/statsite
-Source:           armon-%{name}-%{git_rev}.tar.gz
+Source:           https://github.com/armon/statsite/archive/v%{version}.tar.gz
 Source1:          statsite.conf.default
-Patch1:           statsite-daemonize.patch
 Source2:          statsite.init
-BuildRoot:        %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+BuildRoot:        %{_tmppath}/%{name}-%{version}-root-%(%{__id_u} -n)
 
 BuildRequires:    check
 BuildRequires:    scons
@@ -24,8 +21,7 @@ version of statsite.
 
 
 %prep
-%setup -q -n armon-%{name}-%{git_rev}
-%patch1 -p1
+%setup -q -n%{name}-%{version}
 
 
 %build
