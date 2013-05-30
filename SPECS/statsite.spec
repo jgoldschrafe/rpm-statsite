@@ -1,14 +1,14 @@
 Name:             statsite
-Version:          0
-Release:          0.5.0
+Version:          0.5.0
+Release:          1
 Summary:          Stats aggregation server
 Group:            Applications/Internet
 License:          BSD
 URL:              https://github.com/armon/statsite
-Source:           https://github.com/armon/statsite/archive/v%{release}.tar.gz
+Source:           https://github.com/armon/statsite/archive/v%{version}.tar.gz
 Source1:          statsite.conf.default
 Source2:          statsite.init
-BuildRoot:        %{_tmppath}/%{name}-%{release}-root-%(%{__id_u} -n)
+BuildRoot:        %{_tmppath}/%{name}-%{version}-root-%(%{__id_u} -n)
 
 BuildRequires:    check
 BuildRequires:    scons
@@ -21,7 +21,7 @@ version of statsite.
 
 
 %prep
-%setup -q -n%{name}-%{release}
+%setup -q -n%{name}-%{version}
 
 
 %build
